@@ -44,7 +44,7 @@ namespace graph
 				std::unordered_map<std::string, std::shared_ptr<BrokerChannel>> broker_channels_;
 
 				BrokerChannel* GetChannel(const std::string& topic);
-				void ProxyThread();
+				void ProxyThread();				
 			};
 		}
 	}

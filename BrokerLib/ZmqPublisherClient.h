@@ -19,7 +19,7 @@ namespace graph
 					ZmqPublisherClient(const std::string& broker_ip, uint16_t broker_port);
 					~ZmqPublisherClient() = default;
 
-					void PublishMessage(const std::string& topic, models::BrokerMessage& msg) const;
+					void PublishMessage(const std::string& topic, models::BrokerMessage* msg) const;
 
 				private:
 					std::shared_ptr<zmq::socket_t> publisher_socket_;

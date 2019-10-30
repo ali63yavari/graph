@@ -9,7 +9,7 @@
 #include "zmq.hpp"
 
 #include "FileRepository.h"
-#include "BrokerMessage.h"
+
 namespace graph
 {
 	namespace qc
@@ -25,7 +25,7 @@ namespace graph
 					std::shared_mutex& mutex);
 				~BrokerChannel();
 				bool IsSync() const;
-				bool Enqueue(const std::vector<char>& raw_data) const;
+				void Enqueue(const std::vector<char>& raw_msg);
 			
 				void IncreaseSubscriber()
 				{
@@ -44,19 +44,24 @@ namespace graph
 				}
 
 			private:
-				const std::string& topic_;
+				std::string topic_;
 				std::shared_ptr<repositories::FileRepository> file_repo_;
-				const std::string& path_;
+				std::string path_;
 				int subscriber_count_;
 				zmq::socket_t* backend_socket_;
 
 				std::thread th_channel_;
+				std::thread th_persist_;
 				bool terminate_channel_;
 				std::shared_mutex& mutex_;
+				std::mutex mm_;
+				std::shared_mutex q_mutex_;
+				std::queue<std::vector<char>> raw_msgs;
 
-				std::unique_ptr<std::queue<std::vector<char>>> realtime_buffer_;
+				//std::unique_ptr<std::queue<std::vector<char>>> realtime_buffer_;
+				bool Persist(const char* raw_data, int len) const;
 
-				bool Dequeue(std::vector<char> raw_data) const
+				bool Dequeue(std::vector<char>& raw_data) const
 				{
 					return file_repo_->Dequeue(raw_data);
 				}

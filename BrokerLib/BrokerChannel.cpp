@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "BrokerChannel.h"
+#include <iostream>
 
 namespace graph
 {
@@ -18,22 +19,40 @@ namespace graph
 				terminate_channel_(false),
 				mutex_(mutex)
 			{
-				file_repo_ = std::make_shared<repositories::FileRepository>(path, topic + ".bin");
-				realtime_buffer_ = std::make_unique<std::queue<std::vector<char>>>();
+				file_repo_ = std::make_shared<repositories::FileRepository>(path, topic + ".bin");				
 
+				
+				th_persist_ = std::thread([this]()
+				{
+					std::chrono::milliseconds timestamp(1);
+
+					while (true)
+					{
+						if (raw_msgs.empty())
+						{
+							std::this_thread::sleep_for(timestamp);
+							continue;
+						}
+
+						std::unique_lock<std::shared_mutex> lock(q_mutex_);
+						auto msg = raw_msgs.front();
+						Persist((char*)(&msg.data()[0]), msg.size());
+						raw_msgs.pop();
+					}
+				});
 				th_channel_ = std::thread([this]()
 				{
-					const std::chrono::duration<double, std::milli> delay(10);
+					const std::chrono::duration<double, std::milli> delay(1);
 
 					while (!terminate_channel_)
 					{
 						if (!HasSubscriber())
 						{
 							std::this_thread::sleep_for(delay);
+
 							continue;
 						}
 
-						const auto len = sizeof(models::BrokerMessage);
 						std::vector<char> buff;
 						if (Dequeue(buff))
 						{
@@ -41,15 +60,6 @@ namespace graph
 							continue;
 						}
 
-						if (realtime_buffer_->empty())
-						{
-							std::this_thread::sleep_for(delay);
-							continue;
-						}
-
-						auto real_buff = realtime_buffer_->front();
-						SendDataToBackend(real_buff);
-						realtime_buffer_->pop();
 					}
 				});
 			}
@@ -65,14 +75,21 @@ namespace graph
 				return file_repo_->Empty();
 			}
 
-			bool BrokerChannel::Enqueue(const std::vector<char>& raw_data) const
-			{
-				if (!IsSync() || !HasSubscriber())
-					return file_repo_->Enqueue(raw_data);
-				realtime_buffer_->push(raw_data);
-
-				return true;
+			bool BrokerChannel::Persist(const char* raw_data, int len) const
+			{				
+				return file_repo_->Enqueue(raw_data, len);				
 			}
+
+			void BrokerChannel::Enqueue(const std::vector<char>& raw_msg)
+			{				
+				auto len = raw_msg.size();
+				if (len <= 0)
+					return;
+
+				std::unique_lock<std::shared_mutex> lock(q_mutex_);				
+				raw_msgs.push(raw_msg);
+			}
+
 
 			void BrokerChannel::SendDataToBackend(const std::vector<char>& raw_data) const
 			{

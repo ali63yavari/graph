@@ -160,6 +160,7 @@
     <ClInclude Include="BrokerChannel.h" />
     <ClInclude Include="BrokerMessage.h" />
     <ClInclude Include="BrokerMessageBase.h" />
+    <ClInclude Include="Common.h" />
     <ClInclude Include="FileRepository.h" />
     <ClInclude Include="RepositoryBody.h" />
     <ClInclude Include="RepositoryHeader.h" />

@@ -3,19 +3,49 @@
 
 #include "pch.h"
 #include <iostream>
+#include <windows.h>
+#include "../BrokerLib/ZmqSubscriberClient.h"
+#include "../BrokerLib/Common.h"
+
 
 int main()
-{
-    std::cout << "Hello World!\n"; 
+{	
+	graph::qc::broker::clients::ZmqSubscriberClient subs(SUBSCRIBER_CLIENT_IP, BACKEND_PORT, DEFAULT_TOPIC, nullptr);
+
+	std::cout << "Subscriber is ready." << std::endl;
+	std::cout << "Press Ctrl+C to terminate." << std::endl;
+
+	const auto blank_line = std::string(60, ' ');
+
+	uint64_t last_id{0};
+	uint64_t msg_counter{0};
+
+	while(true)
+	{
+		auto b = subs.WaitForDataChanged(100);
+		if (!b)
+		{
+			zmq_sleep(1);
+			continue;
+		}
+
+		subs.GetData(last_id, msg_counter);
+
+		Gotoxy(10, 5);
+		std::cout << blank_line;
+		Gotoxy(10, 6);
+		std::cout << blank_line;
+		Gotoxy(10, 7);
+		std::cout << blank_line;
+
+		Gotoxy(10, 5);
+		std::cout << "Message Count:\t" << msg_counter;
+		Gotoxy(10, 6);
+		std::cout << "Last Published Id:\t" << last_id;		
+		Gotoxy(10, 7);
+		std::cout << "Difference:\t" << last_id - msg_counter;
+
+		zmq_sleep(1);
+	}
 }
 
-// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
-// Debug program: F5 or Debug > Start Debugging menu
-
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file

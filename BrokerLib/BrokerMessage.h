@@ -16,11 +16,29 @@ namespace graph
 				class BrokerMessage : public BrokerMessageBase
 				{
 				public:
-					BrokerMessage()
+					BrokerMessage() = default;
+					~BrokerMessage()
+					{
+						//try
+						{
+							delete[] data;
+						}
+						//catch (...)
+						{
+						}
+					}
+					
+
+					void UpdateId()
 					{
 						std::chrono::microseconds us = std::chrono::duration_cast<std::chrono::microseconds>(
 							std::chrono::system_clock::now().time_since_epoch());
 						msg_id = us.count();
+					}
+
+					void IncreaseCounter()
+					{
+						msg_id++;
 					}
 
 					int GetSize() override
@@ -59,6 +77,7 @@ namespace graph
 							start_pos += data_len;
 						}
 					}
+
 					int GetBytes(char* pdata) override
 					{
 						const auto len = GetSize();
@@ -68,8 +87,7 @@ namespace graph
 							pdata = nullptr;
 							return 0;
 						}
-
-						pdata = new char[len];
+						
 						int pos = 0;
 
 						memcpy(pdata + pos, reinterpret_cast<char*>(&msg_id), sizeof(long long));
@@ -97,10 +115,10 @@ namespace graph
 						return pos;
 					}
 
-					long long msg_id{};
-					uint32_t data_len{};
+					long long msg_id{0};
+					uint32_t data_len{0};
 					std::string topic{};
-					char* data{};
+					char* data{};					
 				};
 			}
 		}

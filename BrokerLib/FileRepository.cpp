@@ -2,6 +2,7 @@
 #include "FileRepository.h"
 #include "BrokerMessageBase.h"
 #include "RepositoryBody.h"
+#include <iostream>
 
 namespace graph
 {
@@ -24,6 +25,8 @@ namespace graph
 					assert(is_exist);
 
 					auto repo_full_path = path.append(file_name);
+					repo_full_path_ = repo_full_path.string();
+
 					if (fs::exists(repo_full_path))
 					{
 						repo_handle_ = std::make_unique<std::fstream>(repo_full_path, std::ios_base::out | std::ios_base::in | std::ios_base::binary);
@@ -41,16 +44,18 @@ namespace graph
 
 						repo_handle_ = std::make_unique<std::fstream>(repo_full_path, std::ios_base::out | std::ios_base::in | std::ios_base::binary);
 						repo_handle_->write(reinterpret_cast<char*>(&repo_header_), sizeof(repo_header_));
-						repo_handle_->flush();
+						repo_handle_->flush();					
 					}
 				}			
 
-				bool FileRepository::Enqueue(const std::vector<char>& raw_data)
+				bool FileRepository::Enqueue(const char* raw_data, int len)
 				{
-					RepositoryBody body(&(raw_data.data()[0]), raw_data.size());
+					RepositoryBody body(raw_data, len);
 
 					std::vector<char> pbody(body.GetSize());
 					body.GetByte((char*)(&pbody.data()[0]));
+
+					std::unique_lock<std::shared_mutex> lock(mutex_);			
 
 					repo_handle_->seekg(repo_header_.last_write_pos, repo_handle_->beg);
 					repo_handle_->write((char*)(&pbody.data()[0]), pbody.size());
@@ -62,9 +67,13 @@ namespace graph
 				}
 
 				uint32_t FileRepository::Dequeue(std::vector<char>& raw_data)
-				{
+				{					
 					if (Empty())
+					{
 						return 0;
+					}
+
+					std::unique_lock<std::shared_mutex> lock(mutex_);
 
 					uint32_t body_len = 0;
 
@@ -85,9 +94,7 @@ namespace graph
 				}
 
 				void FileRepository::UpdateRepositoryHeader()
-				{
-					std::unique_lock<std::shared_mutex> lock(mutex_);
-				
+				{				
 					repo_handle_->seekg(0, repo_handle_->beg);
 					repo_handle_->write(reinterpret_cast<char*>(&repo_header_), sizeof(repo_header_));
 					repo_handle_->flush();

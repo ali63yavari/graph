@@ -162,6 +162,11 @@
     </ClCompile>
     <ClCompile Include="SubscriberApp.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BrokerLib\BrokerLib.vcxproj">
+      <Project>{ab6a79d1-dadc-43af-a90e-c285e4c543e4}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

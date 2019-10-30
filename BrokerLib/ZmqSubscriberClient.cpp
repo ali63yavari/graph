@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "ZmqSubscriberClient.h"
+#include "StringBuilder.h"
+#include <iostream>
+
 namespace graph
 {
 	namespace qc
@@ -18,23 +21,43 @@ namespace graph
 					assert(!broker_ip.empty());
 					assert(!topic.empty());
 					assert(broker_port > 0);
-					assert(callback != nullptr);
+					//assert(callback != nullptr);
 
 					context_ = std::make_shared<zmq::context_t>(1);
-					subscriber_socket_ = std::make_shared<zmq::socket_t>(*(context_.get()), ZMQ_SUB);
-					size_t len = topic.length();
-					subscriber_socket_->getsockopt(ZMQ_SUBSCRIBE, (void*)topic.data(), &len);
+					subscriber_socket_ = std::make_shared<zmq::socket_t>(*context_, ZMQ_SUB);
+					std::string str = topic;
+					size_t len = str.size() * sizeof(str[0]);
+
+					const std::string endpoint =
+						extensions::StringBuilder() << "tcp://" << broker_ip << ":" << broker_port;
+
+					int buffer_size = 1024 * 1024 * 1024;
+					subscriber_socket_->setsockopt(ZMQ_RCVBUF, &buffer_size, sizeof(buffer_size));
+					subscriber_socket_->setsockopt(ZMQ_SNDBUF, &buffer_size, sizeof(buffer_size));
+
+					subscriber_socket_->connect(endpoint);
+					const int rc = zmq_setsockopt(subscriber_socket_->handle(), ZMQ_SUBSCRIBE, str.c_str(), str.length());
+					if (rc != 0)
+						throw zmq::error_t();
+
+					th_read = std::thread([&]()
+					{
+						ReadThread();
+					});
 				}
 
-				void ZmqSubscriberClient::ReadThread() const
+				void ZmqSubscriberClient::ReadThread()
 				{
-					zmq::pollitem_t items[2] = {
-						{static_cast<void*>(*(subscriber_socket_.get())), 0, ZMQ_POLLIN, 0},
+					zmq::pollitem_t items[1] = {
+						{static_cast<void*>(*subscriber_socket_), 0, ZMQ_POLLIN, 0},
 					};
+
+					long long last_id = 0;
+					long long msg_counter = 0;
 
 					while (!terminate_reader_)
 					{
-						if (zmq::poll(items, 1, 50) == -1)
+						if (zmq::poll(items, 1, 10) == -1)
 							break; //  Interrupted
 
 						if (items[0].revents & ZMQ_POLLIN)
@@ -45,22 +68,19 @@ namespace graph
 
 							subscriber_socket_->recv(msg);
 							auto data = static_cast<char*>(msg.data());
-							auto len = msg.size();
 
 							if (topic.empty())
-								continue;						
+								continue;
+							
 
-							try
-							{
-								//convert raw data to BrokerMessage and call callback method
-								models::BrokerMessage br_msg{};
-								int pos = 0;
-								br_msg.SetBytes(data, pos);
-								callback_(br_msg);
-							}
-							catch (...)
-							{
-							}
+							models::BrokerMessage br_msg{};
+							int pos = 0;
+							br_msg.SetBytes(data, pos);
+							
+							last_id = br_msg.msg_id;
+							msg_counter++;
+
+							SetData(last_id, msg_counter);
 						}
 					}
 				}
